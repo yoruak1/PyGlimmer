@@ -6,13 +6,15 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                            QCheckBox, QGroupBox, QMessageBox, QSplitter, QListWidget,
                            QProgressBar, QTabWidget, QLineEdit, QRadioButton, QButtonGroup,
                            QGraphicsDropShadowEffect, QFrame, QDialog)
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, pyqtProperty
 from PyQt6.QtGui import QFont, QColor, QPalette, QPixmap, QIcon
 import zlib
 import dis
 import marshal
 import struct
 import uuid
+import re
+import webbrowser
 
 try:
     from Decryptor.decrypt_pyinstaller_lt4 import decrypt_pyc_files as decrypt_lt4
@@ -409,6 +411,106 @@ class CTOCEntry:
         self.typeCmprsData = typeCmprsData
         self.name = name
 
+class AnimatedLogoFrame(QFrame):
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._scale_factor = 1.0
+        self._opacity = 1.0
+        self.original_size = self.size()
+        
+        self.scale_animation = QPropertyAnimation(self, b"scale_factor")
+        self.scale_animation.setDuration(200)
+        self.scale_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        
+        self.opacity_animation = QPropertyAnimation(self, b"opacity_value")
+        self.opacity_animation.setDuration(150)
+        self.opacity_animation.setEasingCurve(QEasingCurve.Type.OutQuad)
+    
+    @pyqtProperty(float)
+    def scale_factor(self):
+        return self._scale_factor
+    
+    @scale_factor.setter
+    def scale_factor(self, value):
+        self._scale_factor = value
+        self.update_transform()
+    
+    @pyqtProperty(float)
+    def opacity_value(self):
+        return self._opacity
+    
+    @opacity_value.setter
+    def opacity_value(self, value):
+        self._opacity = value
+        self.update_opacity()
+    
+    def update_transform(self):
+        try:
+            if hasattr(self, 'original_size'):
+                new_width = int(self.original_size.width() * self._scale_factor)
+                new_height = int(self.original_size.height() * self._scale_factor)
+                self.resize(new_width, new_height)
+                
+                if hasattr(self, 'parent') and self.parent():
+                    margin_right = 10
+                    margin_top = 5
+                    parent_width = self.parent().width()
+                    self.move(parent_width - new_width - margin_right, margin_top)
+        except:
+            pass
+    
+    def update_opacity(self):
+        try:
+            if hasattr(self, 'base_style'):
+                brightness_factor = self._opacity
+                
+                if brightness_factor > 1.0:
+                    intensity = min((brightness_factor - 1.0) * 2.0, 1.0)
+                    
+                    bright_style = self.base_style.replace(
+                        "stop: 0 rgba(245, 167, 66, 100)",
+                        f"stop: 0 rgba(255, 200, 120, {100 + int(intensity * 50)})"
+                    ).replace(
+                        "stop: 0.7 rgba(245, 167, 66, 60)",
+                        f"stop: 0.7 rgba(255, 200, 120, {60 + int(intensity * 40)})"
+                    ).replace(
+                        "border: 2px solid rgba(245, 167, 66, 150)",
+                        f"border: 3px solid rgba(255, 200, 120, {150 + int(intensity * 70)})"
+                    )
+                    
+                    self.setStyleSheet(bright_style)
+                else:
+                    self.setStyleSheet(self.base_style)
+        except:
+            pass
+    
+    def enterEvent(self, event):
+        try:
+            self.scale_animation.setStartValue(self._scale_factor)
+            self.scale_animation.setEndValue(1.1)
+            self.scale_animation.start()
+            
+            self.opacity_animation.setStartValue(self._opacity)
+            self.opacity_animation.setEndValue(1.3)
+            self.opacity_animation.start()
+        except:
+            pass
+        super().enterEvent(event)
+    
+    def leaveEvent(self, event):
+        try:
+            self.scale_animation.setStartValue(self._scale_factor)
+            self.scale_animation.setEndValue(1.0)
+            self.scale_animation.start()
+            
+            self.opacity_animation.setStartValue(self._opacity)
+            self.opacity_animation.setEndValue(1.0)
+            self.opacity_animation.start()
+        except:
+            pass
+        super().leaveEvent(event)
+
 class PythonDecompilerApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -417,8 +519,8 @@ class PythonDecompilerApp(QMainWindow):
         self.encrypted_files = []
         
     def initUI(self):
-        self.setWindowTitle('PyGlimmer  By: yoruaki  公众号：夜秋的小屋')
-        self.setGeometry(100, 100, 900, 700)
+        self.setWindowTitle('PyGlimmer v1.1  By: yoruaki  公众号：夜秋的小屋')
+        self.setGeometry(100, 100, 1200, 800)
         
         logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image", "logo.png")
         if os.path.exists(logo_path):
@@ -757,6 +859,11 @@ class PythonDecompilerApp(QMainWindow):
         """)
         decrypt_settings_layout = QVBoxLayout()
         
+        self.auto_detect_button = QPushButton("自动配置")
+        self.auto_detect_button.setStyleSheet(self.get_button_style())
+        self.auto_detect_button.clicked.connect(self.auto_detect_decrypt_settings)
+        decrypt_settings_layout.addWidget(self.auto_detect_button)
+        
         key_layout = QHBoxLayout()
         key_layout.addWidget(QLabel("解密密钥:"))
         self.decrypt_key_input = QLineEdit()
@@ -793,7 +900,7 @@ class PythonDecompilerApp(QMainWindow):
                 border-bottom-right-radius: 3px;
             }
         """)
-        self.python_version_combo.addItems(["2.7", "3.0", "3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10"])
+        self.python_version_combo.addItems(["2.7", "3.0", "3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12"])
         self.python_version_combo.setCurrentText("3.8")
         python_version_layout.addWidget(self.python_version_combo)
         decrypt_settings_layout.addLayout(python_version_layout)
@@ -1101,6 +1208,28 @@ class PythonDecompilerApp(QMainWindow):
         pyinstaller_file_layout.addWidget(self.pyinstaller_browse_button)
         pyinstaller_file_section.setLayout(pyinstaller_file_layout)
         
+        detect_button_layout = QHBoxLayout()
+        self.detect_python_version_button = QPushButton("检测Python版本")
+        self.detect_python_version_button.setStyleSheet(self.get_button_style())
+        self.detect_python_version_button.clicked.connect(self.detect_python_version)
+        self.detect_python_version_button.setEnabled(False)
+        
+        detect_button_layout.addWidget(self.detect_python_version_button)
+        detect_button_layout.addStretch()
+        
+        self.detected_version_label = QLabel("未检测")
+        self.detected_version_label.setStyleSheet("""
+            QLabel {
+                color: #F5A742;
+                font-weight: bold;
+                padding: 5px;
+                border: 1px solid #F5A742;
+                border-radius: 4px;
+                background-color: #FFFFFF;
+            }
+        """)
+        detect_button_layout.addWidget(self.detected_version_label)
+        
         version_tip_label = QLabel("建议使用和程序相同的Python版本进行解包，以获得最佳结果！")
         version_tip_label.setStyleSheet("""
             color: #F5A742;
@@ -1186,31 +1315,189 @@ class PythonDecompilerApp(QMainWindow):
         pyinstaller_results_section.setLayout(pyinstaller_results_layout)
         
         pyinstaller_layout.addWidget(pyinstaller_file_section)
+        pyinstaller_layout.addLayout(detect_button_layout)
         pyinstaller_layout.addWidget(version_tip_label)
         pyinstaller_layout.addWidget(pyinstaller_progress_section)
         pyinstaller_layout.addWidget(self.extract_pyinstaller_button)
         pyinstaller_layout.addWidget(pyinstaller_results_section, 1)
         
+        pylingual_tab = QWidget()
+        pylingual_layout = QVBoxLayout(pylingual_tab)
+        pylingual_layout.setSpacing(10)
+        
+        pylingual_file_section = QGroupBox("文件选择")
+        pylingual_file_section.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #F5A742;
+                border-radius: 8px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        pylingual_file_layout = QHBoxLayout()
+        
+        self.pylingual_file_path_label = QLabel("未选择文件")
+        self.pylingual_browse_button = QPushButton("浏览...")
+        self.pylingual_browse_button.setStyleSheet(self.get_button_style())
+        self.pylingual_browse_button.clicked.connect(self.browse_pylingual_file)
+        
+        pylingual_file_layout.addWidget(self.pylingual_file_path_label, 1)
+        pylingual_file_layout.addWidget(self.pylingual_browse_button)
+        pylingual_file_section.setLayout(pylingual_file_layout)
+        
+        pylingual_website_label = QLabel('<a href="https://pylingual.io" style="color: #F5A742; text-decoration: none;">在线使用 PyLingual: https://pylingual.io</a>')
+        pylingual_website_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        pylingual_website_label.setOpenExternalLinks(True)
+        pylingual_website_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        pylingual_website_label.setStyleSheet("""
+            QLabel {
+                font-size: 10pt;
+                font-weight: bold;
+                font-family: '微软雅黑', Arial, sans-serif;
+                padding: 5px;
+                border-radius: 6px;
+                background-color: #FFF8F0;
+                border: 2px solid #F5A742;
+                margin: 5px 0px;
+            }
+            QLabel:hover {
+                background-color: #FFF0E6;
+                border: 2px solid #FF9966;
+            }
+        """)
+        
+        pylingual_options_section = QGroupBox("选项")
+        pylingual_options_section.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #F5A742;
+                border-radius: 8px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        pylingual_options_layout = QVBoxLayout()
+        
+        self.pylingual_save_checkbox = QCheckBox("将结果保存到.py文件")
+        self.pylingual_save_checkbox.setStyleSheet("""
+            QCheckBox {
+                spacing: 5px;
+            }
+            QCheckBox::indicator {
+                width: 15px;
+                height: 15px;
+            }
+            QCheckBox::indicator:unchecked {
+                border: 2px solid #F5A742;
+                border-radius: 8px;
+                background-color: #FFFFFF;
+            }
+            QCheckBox::indicator:checked {
+                border: 2px solid #F5A742;
+                border-radius: 8px;
+                background-color: #FF9966;
+            }
+        """)
+        
+        pylingual_options_layout.addWidget(self.pylingual_save_checkbox)
+        pylingual_options_section.setLayout(pylingual_options_layout)
+        
+        self.pylingual_decompile_button = QPushButton("反编译")
+        self.pylingual_decompile_button.setStyleSheet(self.get_button_style())
+        self.pylingual_decompile_button.clicked.connect(self.pylingual_decompile)
+        self.pylingual_decompile_button.setEnabled(False)
+        
+        self.pylingual_results_tab_widget = QTabWidget()
+        self.pylingual_results_tab_widget.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #F5A742;
+                border-radius: 4px;
+                padding: 5px;
+            }
+            QTabBar::tab {
+                background-color: #FFF1DC;
+                border: 1px solid #F5A742;
+                border-bottom-color: none;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                padding: 6px 10px;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected {
+                background-color: #FFFFFF;
+                border-bottom: none;
+            }
+            QTabBar::tab:!selected {
+                margin-top: 2px;
+            }
+        """)
+        
+        progress_widget = QWidget()
+        progress_layout = QVBoxLayout(progress_widget)
+        
+        self.pylingual_progress_text = QTextEdit()
+        self.pylingual_progress_text.setReadOnly(True)
+        self.pylingual_progress_text.setStyleSheet("""
+            QTextEdit {
+                border: 1px solid #F5A742;
+                border-radius: 4px;
+                padding: 5px;
+                background-color: #FFFFFF;
+                color: #333333;
+                font-family: 'Consolas', 'Monaco', monospace;
+                font-size: 9pt;
+            }
+        """)
+        
+        progress_layout.addWidget(self.pylingual_progress_text)
+        
+        result_widget = QWidget()
+        result_layout = QVBoxLayout(result_widget)
+        
+        self.pylingual_results_text = QTextEdit()
+        self.pylingual_results_text.setReadOnly(True)
+        self.pylingual_results_text.setStyleSheet("""
+            QTextEdit {
+                border: 1px solid #F5A742;
+                border-radius: 4px;
+                padding: 5px;
+                background-color: #FFFFFF;
+                color: #333333;
+                font-family: 'Consolas', 'Monaco', monospace;
+                font-size: 10pt;
+            }
+        """)
+        
+        result_layout.addWidget(self.pylingual_results_text)
+        
+        self.pylingual_results_tab_widget.addTab(progress_widget, "处理进度")
+        self.pylingual_results_tab_widget.addTab(result_widget, "反编译结果")
+        
+        pylingual_layout.addWidget(pylingual_file_section)
+        pylingual_layout.addWidget(pylingual_website_label)
+        pylingual_layout.addWidget(pylingual_options_section)
+        pylingual_layout.addWidget(self.pylingual_decompile_button)
+        pylingual_layout.addWidget(self.pylingual_results_tab_widget, 1)
+
         self.tab_widget.addTab(single_tab, "单文件反编译")
         self.tab_widget.addTab(batch_tab, "批量反编译")
         self.tab_widget.addTab(decrypt_tab, "PYC解密")
         self.tab_widget.addTab(bytecode_tab, "字节码/十六进制/文本内容查看")
         self.tab_widget.addTab(pyinstaller_tab, "PyInstaller解包")
+        self.tab_widget.addTab(pylingual_tab, "PyLingual反编译")
         
         main_layout.addWidget(self.tab_widget)
-        
-        about_button = QPushButton("关于")
-        about_button.setStyleSheet(self.get_button_style())
-        about_button.clicked.connect(self.show_about_dialog)
-        
-        about_button.setFixedHeight(30)
-        about_button.setMaximumWidth(150)
-        
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-        button_layout.addWidget(about_button)
-        
-        main_layout.addLayout(button_layout)
     
     def get_button_style(self):
         return """
@@ -1250,16 +1537,25 @@ class PythonDecompilerApp(QMainWindow):
         """)
         
     def add_logo(self):
-        self.logo_frame = QFrame(self)
+        self.logo_frame = AnimatedLogoFrame(self)
         self.logo_frame.setObjectName("logoFrame")
         
         logo_size = 75
         frame_size = logo_size + 10
         self.logo_frame.setFixedSize(frame_size, frame_size)
         
+        self.logo_frame.original_size = QSize(frame_size, frame_size)
+        
+        self.logo_frame.setCursor(Qt.CursorShape.PointingHandCursor)
+        
         self.logo_label = QLabel(self.logo_frame)
         self.logo_label.setObjectName("logoLabel")
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        self.logo_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.logo_label.mousePressEvent = self.logo_clicked
+        
+        self.logo_frame.logo_label = self.logo_label
         
         self.logo_label.move(5, 5)
         self.logo_label.setFixedSize(logo_size, logo_size)
@@ -1272,22 +1568,26 @@ class PythonDecompilerApp(QMainWindow):
                                   Qt.TransformationMode.SmoothTransformation)
             self.logo_label.setPixmap(pixmap)
             
-            self.logo_frame.setStyleSheet("""
+            base_style = """
                 #logoFrame {
                     background: qradialgradient(
                         cx: 0.5, cy: 0.5, radius: 0.8, 
                         fx: 0.5, fy: 0.5, 
-                        stop: 0 rgba(255, 248, 238, 180), 
-                        stop: 0.7 rgba(255, 248, 238, 120), 
-                        stop: 1 rgba(255, 248, 238, 0)
+                        stop: 0 rgba(245, 167, 66, 100), 
+                        stop: 0.7 rgba(245, 167, 66, 60), 
+                        stop: 1 rgba(245, 167, 66, 0)
                     );
+                    border: 2px solid rgba(245, 167, 66, 150);
                     border-radius: """ + str(frame_size//2) + """px;
                 }
                 #logoLabel {
                     background-color: transparent;
-                    opacity: 0.9;
+                    opacity: 1.0;
                 }
-            """)
+            """
+            
+            self.logo_frame.base_style = base_style
+            self.logo_frame.setStyleSheet(base_style)
             
             shadow = QGraphicsDropShadowEffect(self)
             shadow.setBlurRadius(15)
@@ -1297,8 +1597,10 @@ class PythonDecompilerApp(QMainWindow):
             
             self.logo_frame.setParent(self)
             self.resizeEvent = self.on_resize
-            
             self.position_logo()
+    
+    def logo_clicked(self, event):
+        self.show_about_dialog()
     
     def on_resize(self, event):
         self.position_logo()
@@ -1429,7 +1731,6 @@ class PythonDecompilerApp(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_label.setText("正在反编译...")
         
-       
         if hasattr(self, 'batch_base_dir'):
             extract_base_dir = os.path.join(os.path.dirname(self.batch_base_dir), "extract")
         else:
@@ -1474,7 +1775,6 @@ class PythonDecompilerApp(QMainWindow):
                 progress = int((i + 1) / total_files * 100)
                 self.progress_bar.setValue(progress)
                 QApplication.processEvents()  
-        
         
         self.progress_label.setText("反编译完成")
         
@@ -1593,9 +1893,12 @@ class PythonDecompilerApp(QMainWindow):
             error_message = f"成功: {success_count}/{total_files}\n\n失败的文件:\n"
             for file_path, error in failed_files:
                 error_message += f"- {normalize_path_for_display(os.path.basename(file_path))}: {error}\n"
+            if success_count > 0:
+                error_message += f"\n解密成功的文件保存在: {normalize_path_for_display(extract_base_dir)}"
             self.show_error("解密结果", error_message)
         else:
-            self.show_info("解密结果", f"所有{total_files}个文件都已成功解密。")
+            success_message = f"所有{total_files}个文件都已成功解密。\n\n解密后的文件保存在:\n{normalize_path_for_display(extract_base_dir)}"
+            self.show_info("解密结果", success_message)
     
     def run_decompiler(self, pyc_file, decompiler):
         if decompiler == "uncompyle6":
@@ -1833,8 +2136,10 @@ class PythonDecompilerApp(QMainWindow):
         if file_path:
             self.pyinstaller_file_label.setText(normalize_path_for_display(file_path))
             self.extract_pyinstaller_button.setEnabled(True)
+            self.detect_python_version_button.setEnabled(True)
             self.pyinstaller_results_text.clear()
             self.pyinstaller_progress_label.setText("就绪")
+            self.detected_version_label.setText("未检测")
     
     def update_pyinstaller_status(self, message):
         if '\\' in message:
@@ -1933,19 +2238,26 @@ class PythonDecompilerApp(QMainWindow):
             left_logo_label.setPixmap(pixmap)
             left_logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        github_label = QLabel("https://github.com/yoruak1")
+        github_label = QLabel('<a href="https://github.com/yoruak1" style="color: #F5A742; text-decoration: none;">https://github.com/yoruak1</a>')
         github_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        github_label.setOpenExternalLinks(True)
+        github_label.setCursor(Qt.CursorShape.PointingHandCursor)
         github_label.setStyleSheet("""
-            color: #F5A742;
-            font-size: 12pt;
-            font-weight: bold;
-            font-family: '微软雅黑', Arial, sans-serif;
-            letter-spacing: 1px;
-            padding: 8px;
-            border-radius: 8px;
-            background-color: white;
-            border: 3px solid #F5A742;
-            margin: 10px;
+            QLabel {
+                font-size: 12pt;
+                font-weight: bold;
+                font-family: '微软雅黑', Arial, sans-serif;
+                letter-spacing: 1px;
+                padding: 8px;
+                border-radius: 8px;
+                background-color: white;
+                border: 3px solid #F5A742;
+                margin: 10px;
+            }
+            QLabel:hover {
+                background-color: #FFF8F0;
+                border: 3px solid #FF9966;
+            }
         """)
         
         left_layout.addWidget(left_logo_label)
@@ -1961,7 +2273,7 @@ class PythonDecompilerApp(QMainWindow):
             right_logo_label.setPixmap(pixmap)
             right_logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        wechat_label = QLabel("绿泡泡公众号：夜秋的小屋")
+        wechat_label = QLabel("公众号：夜秋的小屋")
         wechat_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         wechat_label.setStyleSheet("""
             color: #F5A742;
@@ -1993,8 +2305,424 @@ class PythonDecompilerApp(QMainWindow):
         """)
         
         about_dialog.exec()
+    
+    def browse_pylingual_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "选择PYC文件", "", "Python字节码文件 (*.pyc);;所有文件 (*)"
+        )
+        
+        if file_path:
+            self.pylingual_file_path_label.setText(normalize_path_for_display(file_path))
+            self.pylingual_decompile_button.setEnabled(True)
+    
+    def pylingual_decompile(self):
+        file_path = self.pylingual_file_path_label.text()
+        
+        if file_path == "未选择文件":
+            self.show_error("错误", "请先选择一个PYC文件")
+            return
+        
+        self.pylingual_progress_text.clear()
+        self.pylingual_results_text.clear()
+        
+        self.pylingual_results_tab_widget.setCurrentIndex(0)
+        
+        self.pylingual_decompile_button.setEnabled(False)
+        self.pylingual_decompile_button.setText("正在处理...")
+        
+        try:
+            self.pylingual_progress_text.append("开始PyLingual反编译...")
+            self.pylingual_progress_text.append(f"文件: {normalize_path_for_display(file_path)}")
+            self.pylingual_progress_text.append("=" * 50)
+            QApplication.processEvents()
+            
+            result = self.run_pylingual_decompiler(file_path)
+            
+            if result:
+                self.pylingual_results_text.setPlainText(result)
+                
+                self.pylingual_results_tab_widget.setCurrentIndex(1)
+                
+                if self.pylingual_save_checkbox.isChecked():
+                    output_file = file_path.replace('.pyc', '_pylingual.py')
+                    try:
+                        with open(output_file, 'w', encoding='utf-8') as f:
+                            f.write(result)
+                        self.pylingual_progress_text.append(f"\n✓ 文件已保存: {normalize_path_for_display(output_file)}")
+                        self.show_info("文件已保存", f"输出已保存到 {normalize_path_for_display(output_file)}")
+                    except Exception as e:
+                        self.pylingual_progress_text.append(f"\n✗ 保存失败: {str(e)}")
+                        self.show_error("保存失败", f"无法保存文件: {str(e)}")
+            else:
+                self.pylingual_progress_text.append("\n✗ 反编译失败: 未获得结果")
+                self.show_error("反编译失败", "PyLingual未能成功反编译该文件")
+                
+        except Exception as e:
+            self.pylingual_progress_text.append(f"\n✗ 反编译出错: {str(e)}")
+        finally:
+            self.pylingual_decompile_button.setEnabled(True)
+            self.pylingual_decompile_button.setText("反编译")
+    
+    def run_pylingual_decompiler(self, pyc_file):
+        import tempfile
+        import shutil
+        
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                self.pylingual_progress_text.append("创建临时工作目录...")
+                QApplication.processEvents()
+                
+                cmd = ["pylingual", "-o", temp_dir, pyc_file]
+                
+                self.pylingual_progress_text.append(f"执行命令: {' '.join(cmd)}")
+                self.pylingual_progress_text.append("正在启动PyLingual...")
+                QApplication.processEvents()
+                
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    encoding='utf-8',
+                    errors='replace',
+                    shell=True,
+                    universal_newlines=True,
+                    bufsize=1
+                )
+                
+                output_lines = []
+                while True:
+                    line = process.stdout.readline()
+                    if line:
+                        line = line.strip()
+                        if line:
+                            self.pylingual_progress_text.append(line)
+                            output_lines.append(line)
+                            QApplication.processEvents()
+                    
+                    if process.poll() is not None:
+                        break
+                
+                remaining_output = process.stdout.read()
+                if remaining_output:
+                    for line in remaining_output.strip().split('\n'):
+                        if line.strip():
+                            self.pylingual_progress_text.append(line.strip())
+                            output_lines.append(line.strip())
+                    QApplication.processEvents()
+                
+                return_code = process.wait()
+                
+                if return_code == 0:
+                    self.pylingual_progress_text.append("PyLingual执行完成，正在查找输出文件...")
+                    QApplication.processEvents()
+                    
+                    import glob
+                    py_files = glob.glob(os.path.join(temp_dir, "*.py"))
+                    
+                    if py_files:
+                        self.pylingual_progress_text.append(f"找到输出文件: {os.path.basename(py_files[0])}")
+                        QApplication.processEvents()
+                        
+                        with open(py_files[0], 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        
+                        self.pylingual_progress_text.append("成功读取反编译结果")
+                        return content
+                    else:
+                        self.pylingual_progress_text.append("警告: 未找到生成的.py文件")
+                        return '\n'.join(output_lines) if output_lines else "未获得输出"
+                else:
+                    self.pylingual_progress_text.append(f"✗ PyLingual执行失败，退出代码: {return_code}")
+                    raise Exception(f"pylingual执行失败，退出代码 {return_code}")
+                    
+        except subprocess.TimeoutExpired:
+            self.pylingual_progress_text.append("错误: PyLingual执行超时")
+            raise Exception("PyLingual执行超时")
+        except FileNotFoundError:
+            self.pylingual_progress_text.append("错误: 找不到pylingual命令")
+            raise Exception("找不到pylingual命令。请确保它已安装并添加到PATH中。")
+        except Exception as e:
+            self.pylingual_progress_text.append(f"错误: {str(e)}")
+            raise
+    
+    def detect_python_version(self):
+        exe_file = self.pyinstaller_file_label.text()
+        if not os.path.exists(exe_file):
+            self.show_error("文件未找到", "所选文件不存在。")
+            return
+        
+        try:
+            self.detected_version_label.setText("正在检测...")
+            QApplication.processEvents()
+            
+            with open(exe_file, 'rb') as f:
+                content = f.read()
+            
+            text_content = content.decode('utf-8', errors='ignore')
+            
+            version_patterns = [
+                r'python(\d)(\d+)\.dll',
+                
+                r'libpython(\d)\.(\d+)\.so',
+            ]
+            
+            detected_versions = []
+            
+            for pattern in version_patterns:
+                matches = re.finditer(pattern, text_content, re.IGNORECASE)
+                for match in matches:
+                    if len(match.groups()) == 1:
+                        version = match.group(1)
+                    elif len(match.groups()) == 2:
+                        major, minor = match.groups()
+                        
+                        version = f"{major}.{minor}"
+                    else:
+                        continue
+                    
+                    if self.is_valid_python_version(version):
+                        detected_versions.append(version)
+            
+            unique_versions = list(set(detected_versions))
+            
+            if unique_versions:
+                best_version = self.select_best_version(unique_versions)
+                result_text = f"检测到: Python {best_version}"
+                
+                if len(unique_versions) > 1:
+                    other_versions = [v for v in unique_versions if v != best_version]
+                    result_text += f"\n其他可能版本: {', '.join(other_versions)}"
+                
+                self.detected_version_label.setText(result_text)
+            else:
+                self.detected_version_label.setText("未检测到Python版本信息")
+                
+        except Exception as e:
+            self.detected_version_label.setText("检测失败")
+            self.show_error("版本检测错误", f"检测Python版本时出错: {str(e)}")
+    
+    def is_valid_python_version(self, version):
+        try:
+            parts = version.split('.')
+            if len(parts) != 2:
+                return False
+            
+            major, minor = int(parts[0]), int(parts[1])
+            
+            if major == 2:
+                return 0 <= minor <= 7
+            elif major == 3:
+                return 0 <= minor <= 15
+            else:
+                return False
+                
+        except (ValueError, IndexError):
+            return False
+    
+    def select_best_version(self, versions):
+        if not versions:
+            return None
+        
+        if len(versions) == 1:
+            return versions[0]
+        
+        def version_key(v):
+            try:
+                major, minor = map(int, v.split('.'))
+                return (major, minor)
+            except:
+                return (0, 0)
+        
+        sorted_versions = sorted(versions, key=version_key, reverse=True)
+        return sorted_versions[0]
+    
+    def auto_detect_decrypt_settings(self):
+        directory = QFileDialog.getExistingDirectory(self, "选择PyInstaller解包后的文件夹")
+        if not directory:
+            return
+        
+        self.decrypt_progress_label.setText("正在扫描文件夹...")
+        self.decrypt_progress_bar.setValue(10)
+        QApplication.processEvents()
+        
+        crypto_key_files = []
+        archive_files = []
+        magic_number = None
+        
+        for root, _, files in os.walk(directory):
+            for filename in files:
+                if filename.endswith('.pyc'):
+                    full_path = os.path.join(root, filename)
+                    
+                    try:
+                        with open(full_path, 'rb') as f:
+                            file_header = f.read(4)
+                            if file_header in MAGIC_NUMBERS and magic_number is None:
+                                magic_number = file_header
+                            
+                            f.seek(0)
+                            content = f.read().decode('latin-1', errors='ignore').lower()
+                            
+                            if 'crypto_key' in content and full_path not in crypto_key_files:
+                                crypto_key_files.append(full_path)
+                            
+                            if 'archive' in content and 'pyinstaller' in content and full_path not in archive_files:
+                                archive_files.append(full_path)
+                    except:
+                        continue
+        
+        self.decrypt_progress_bar.setValue(30)
+        self.decrypt_progress_label.setText("正在分析文件...")
+        QApplication.processEvents()
+        
+        key = None
+        for key_file in crypto_key_files:
+            try:
+                decompiler = "uncompyle6"
+                result = self.run_decompiler(key_file, decompiler)
+                
+                if result:
+                    lines = result.splitlines()
+                    key_found = False
+                    
+                    for i, line in enumerate(lines):
+                        if 'crypto_key' in line.lower():
+                            for j in range(i, min(i+5, len(lines))):
+                                if '=' in lines[j]:
+                                    possible_key = lines[j].split('=')[1].strip()
+                                    possible_key = possible_key.strip("'\" ")
+                                    if possible_key and not possible_key.startswith(('(', '{')):
+                                        key = possible_key
+                                        key_found = True
+                                        break
+                            if key_found:
+                                break
+                    
+                    if not key_found:
+                        result_text = '\n'.join(lines)
+                        key_patterns = [
+                            r"crypto_key\s*=\s*['\"]([^'\"]+)['\"]",
+                            r"key\s*=\s*['\"]([^'\"]+)['\"]",
+                            r"key\s*=\s*b['\"]([^'\"]+)['\"]"
+                        ]
+                        
+                        for pattern in key_patterns:
+                            matches = re.findall(pattern, result_text)
+                            if matches:
+                                key = matches[0]
+                                key_found = True
+                                break
+            except:
+                continue
+            
+            if key:
+                break
+        
+        self.decrypt_progress_bar.setValue(60)
+        QApplication.processEvents()
+        
+        is_lt4 = True
+        for arch_file in archive_files:
+            try:
+                result = self.run_decompiler(arch_file, "uncompyle6")
+                
+                if result:
+                    result_lower = result.lower()
+                    
+                    ctr_patterns = ['mode_ctr', 'aes.ctr', '.ctrmode', 'tinyaes']
+                    cfb_patterns = ['mode_cfb', 'aes.cfb', '.cfbmode', 'pycrypto']
+                    
+                    has_ctr = any(pattern in result_lower for pattern in ctr_patterns)
+                    has_cfb = any(pattern in result_lower for pattern in cfb_patterns)
+                    
+                    if has_ctr:
+                        is_lt4 = False
+                        break
+                    elif has_cfb:
+                        is_lt4 = True
+                        break
+            except:
+                continue
+        
+        self.decrypt_progress_bar.setValue(90)
+        QApplication.processEvents()
+        
+        if key:
+            self.decrypt_key_input.setText(key)
+        
+        if magic_number and magic_number in MAGIC_NUMBERS:
+            python_version = MAGIC_NUMBERS[magic_number]
+            version_number = python_version.replace("Python ", "")
+            found = False
+            for i in range(self.python_version_combo.count()):
+                if self.python_version_combo.itemText(i) == version_number:
+                    self.python_version_combo.setCurrentIndex(i)
+                    found = True
+                    break
+            
+            if not found and version_number.startswith("3."):
+                major, minor = version_number.split('.')
+                for i in range(self.python_version_combo.count()):
+                    combo_version = self.python_version_combo.itemText(i)
+                    if combo_version.startswith(f"{major}."):
+                        self.python_version_combo.setCurrentIndex(i)
+                        break
+        
+        if is_lt4:
+            self.pyinstaller_lt4_radio.setChecked(True)
+        else:
+            self.pyinstaller_ge4_radio.setChecked(True)
+        
+        self.decrypt_progress_bar.setValue(100)
+        self.decrypt_progress_label.setText("识别完成")
+        
+        results = []
+        results.append("自动识别解密设置结果:")
+        results.append("-" * 30)
+        
+        if key:
+            results.append(f"✓ 加密密钥: {key}")
+        else:
+            results.append("✗ 未找到加密密钥")
+        
+        if magic_number and magic_number in MAGIC_NUMBERS:
+            python_version = MAGIC_NUMBERS[magic_number]
+            results.append(f"✓ Python版本: {python_version}")
+        else:
+            results.append("✗ 未能识别Python版本")
+        
+        if is_lt4:
+            results.append(f"✓ PyInstaller版本: < 4.0 (使用CFB模式加密)")
+            results.append("  解密将使用PyCrypto/PyCryptodome库")
+        else:
+            results.append(f"✓ PyInstaller版本: >= 4.0 (使用CTR模式加密)")
+            results.append("  解密将使用TinyAES库")
+        
+        results.append("-" * 30)
+        results.append(f"扫描文件夹: {normalize_path_for_display(directory)}")
+        
+        if not DECRYPTION_AVAILABLE:
+            results.append("\n警告: 缺少解密所需的库，解密功能不可用")
+            results.append("请安装必要的库: pip install pycryptodome tinyaes")
+            
+        self.show_info("自动识别结果", "\n".join(results))
+        
+        if key and magic_number in MAGIC_NUMBERS:
+            self.decrypt_button.setEnabled(True)
+        
+        if key:
+            encrypted_files = get_files_with_extension(directory, ['.pyc.encrypted'])
+            if encrypted_files:
+                self.encrypted_base_dir = directory
+                self.encrypted_files.extend(encrypted_files)
+                self.update_encrypted_files_list()
+                self.decrypt_button.setEnabled(len(self.encrypted_files) > 0 and DECRYPTION_AVAILABLE)
 
 def main():
+    if sys.platform == "win32":
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("PyGlimmer.PythonDecompiler.1.1")
+    
     app = QApplication(sys.argv)
     
     logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image", "logo.png")

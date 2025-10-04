@@ -1,5 +1,5 @@
 PyQt6==6.9.0
-uncompyle6==3.9.1
-decompyle3==3.9.2
+uncompyle6==3.9.3
+decompyle3==3.9.3
 pycryptodome==3.20.0
 tinyaes==1.1.1
