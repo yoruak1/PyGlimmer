@@ -114,10 +114,7 @@ python main.py
 
 ### 功能演示
 
-<video width="800" controls>
-  <source src="./image/demo.mp4" type="video/mp4">
-  您的浏览器不支持视频标签。请<a href="./image/demo.gif">点击此处下载演示视频</a>
-</video>
+<img src="./image/demo.gif" width="800" alt="PyGlimmer功能演示" />
 
 
 
