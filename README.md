@@ -116,7 +116,7 @@ python main.py
 
 <video width="800" controls>
   <source src="./image/demo.mp4" type="video/mp4">
-  您的浏览器不支持视频标签。请<a href="./image/demo.mp4">点击此处下载演示视频</a>
+  您的浏览器不支持视频标签。请<a href="./image/demo.webm">点击此处下载演示视频</a>
 </video>
 
 
