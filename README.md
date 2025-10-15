@@ -126,8 +126,6 @@ python PyGlimmer.py
 
 ****
 
----
-
 ## 🎬 demo
 
 ### 功能演示
