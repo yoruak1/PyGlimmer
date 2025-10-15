@@ -92,7 +92,7 @@ python PyGlimmer.py
 
 使用Pyarmor-Static-Unpack-1shot解包Pyarmor打包程序
 
-![](.\image\P5.png)
+<img src=".\image\P5.png" style="zoom:50%;" />
 
 ---
 
@@ -116,13 +116,13 @@ python PyGlimmer.py
 
 **支持修复使用了错误版本的魔数头和缺少对应版本的魔数头两种情况**
 
-![](.\image\P7.png)
+<img src=".\image\P7.png" style="zoom:50%;" />
 
 ### PYC隐写
 
 使用stegosaurus提取隐藏于pyc文件中的信息
 
-![](.\image\P8.png)
+<img src=".\image\P8.png" style="zoom:50%;" />
 
 ****
 
