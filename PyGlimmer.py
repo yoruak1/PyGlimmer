@@ -18,6 +18,8 @@ import re
 import webbrowser
 import ctypes
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 try:
     from Decryptor.decrypt_pyinstaller_lt4 import decrypt_pyc_files as decrypt_lt4
     from Decryptor.decrypt_pyinstaller_ge4 import decrypt_pyc_files as decrypt_ge4
@@ -199,7 +201,7 @@ class PythonDecompilerApp(QMainWindow):
         self.setWindowTitle('PyGlimmer  by: yoruaki  公众号：夜秋的小屋')
         self.setGeometry(100, 100, 1200, 900)
         
-        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image", "logo.png")
+        logo_path = os.path.join(BASE_DIR, "image", "logo.png")
         if os.path.exists(logo_path):
             self.setWindowIcon(QIcon(logo_path))
         
@@ -2063,7 +2065,7 @@ class PythonDecompilerApp(QMainWindow):
         self.logo_label.move(5, 5)
         self.logo_label.setFixedSize(logo_size, logo_size)
         
-        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image", "logo.png")
+        logo_path = os.path.join(BASE_DIR, "image", "logo.png")
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
             pixmap = pixmap.scaled(logo_size, logo_size,
@@ -2526,7 +2528,7 @@ class PythonDecompilerApp(QMainWindow):
             return self.run_as_subprocess(["decompyle3", pyc_file])
     
     def run_pycdc(self, pyc_file):
-        pycdc_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Decompiler", "pycdc")
+        pycdc_path = os.path.join(BASE_DIR, "Decompiler", "pycdc")
         return self.run_as_subprocess([pycdc_path, pyc_file])
     
     
@@ -2797,7 +2799,7 @@ class PythonDecompilerApp(QMainWindow):
     
     def run_pycdas_disassembly(self, pyc_file):
         try:
-            pycdas_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Disasm", "pycdas")
+            pycdas_path = os.path.join(BASE_DIR, "Disasm", "pycdas")
             
             if not os.path.exists(pycdas_path) and not os.path.exists(pycdas_path + ".exe"):
                 return f"错误: 找不到pycdas工具\n路径: {pycdas_path}\n请确保pycdas已正确安装在Disasm文件夹中。"
@@ -3071,7 +3073,7 @@ class PythonDecompilerApp(QMainWindow):
             
             self.pyarmor_progress_bar.setValue(20)
             
-            shot_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Pyarmor_Unpack", "oneshot", "shot.py")
+            shot_script = os.path.join(BASE_DIR, "Pyarmor_Unpack", "oneshot", "shot.py")
             
             if not os.path.exists(shot_script):
                 self.show_error("工具未找到", f"找不到Pyarmor解包工具: {shot_script}")
@@ -3213,7 +3215,7 @@ class PythonDecompilerApp(QMainWindow):
             self.stego_results_text.clear()
             self.stego_execute_button.setEnabled(False)
             
-            stego_exe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stegosaurus", "stegosaurus.exe")
+            stego_exe = os.path.join(BASE_DIR, "stegosaurus", "stegosaurus.exe")
             
             if not os.path.exists(stego_exe):
                 self.show_error("工具未找到", f"找不到stegosaurus.exe工具: {stego_exe}")
@@ -3314,7 +3316,7 @@ class PythonDecompilerApp(QMainWindow):
             if len(number_str) == 2:
                 return f"{number_str[0]}.{number_str[1]}"
             elif len(number_str) == 3:
-                return f"{number_str[0]}.{number_str[1:]}"
+                return f"{number_str[0]}.{number_str[1:3]}"
             elif len(number_str) == 4:
                 return f"{number_str[0]}.{number_str[1:3]}.{number_str[3]}"
             else:
@@ -3457,7 +3459,7 @@ class PythonDecompilerApp(QMainWindow):
         
         left_layout = QVBoxLayout()
         left_logo_label = QLabel()
-        left_logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image", "logo.png")
+        left_logo_path = os.path.join(BASE_DIR, "image", "logo.png")
         if os.path.exists(left_logo_path):
             pixmap = QPixmap(left_logo_path)
             pixmap = pixmap.scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
@@ -3492,7 +3494,7 @@ class PythonDecompilerApp(QMainWindow):
         
         right_layout = QVBoxLayout()
         right_logo_label = QLabel()
-        right_logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image", "logo_2.png")
+        right_logo_path = os.path.join(BASE_DIR, "image", "logo_2.png")
         if os.path.exists(right_logo_path):
             pixmap = QPixmap(right_logo_path)
             pixmap = pixmap.scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
@@ -3978,7 +3980,7 @@ def main():
         except Exception as e:
             print(f"设置应用程序ID时出错: {e}")
     
-    logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image", "logo.png")
+    logo_path = os.path.join(BASE_DIR, "image", "logo.png")
     if os.path.exists(logo_path):
         app.setWindowIcon(QIcon(logo_path))
         
