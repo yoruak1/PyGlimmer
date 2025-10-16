@@ -1,5 +1,4 @@
-PyQt6==6.9.0
-PyQt6-Qt6==6.9.0
+PyQt6
 uncompyle6==3.9.3
 decompyle3==3.9.3
 pycryptodome==3.20.0
